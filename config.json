@@ -2,11 +2,11 @@
   "language": "en",
   "DeveloperMode": false,
   "autoCreateDB": true,
-  "BOTNAME": "ARIF BABU 😉❤️",
-  "PREFIX": "#",
+  "BOTNAME": "™★𝐁𝐎𝐓 𝐉𝐀𝐍𝐔-4.0",
+  "PREFIX": ".",
 
-  "ADMINBOT": ["61572870433256"],
-  "NDH": ["61572870433256"],
+  "ADMINBOT": ["100016828397863"],
+  "NDH": ["100016828397863"],
 
   "adminOnly": false,
   "ndhOnly": false,
@@ -26,7 +26,7 @@
     }
   },
 
-  "APPSTATEPATH": "COOKIES.txt",
+  "APPSTATEPATH": "Appstate.json",
 
   "EMAIL": "",
   "PASSWORD": "",
