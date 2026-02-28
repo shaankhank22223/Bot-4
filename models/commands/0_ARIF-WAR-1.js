@@ -76,7 +76,7 @@ module.exports.handleEvent = async function ({ api, event }) {
     name = info[senderID]?.name || "User";
   } catch {}
 
-  const finalMsg = `${gaali} ${name}`;
+  const finalMsg = `${name} ${gaali}`;
   return api.sendMessage(finalMsg, threadID);
 };
 
