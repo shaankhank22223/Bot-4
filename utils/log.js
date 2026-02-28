@@ -6,7 +6,7 @@ const moment = require('moment-timezone');
 // Main logger function
 module.exports = function (type, message) {
     try {
-        const timestamp = moment().tz('Asia/Kolkata').format('HH:MM:ss DD/MM/YYYY');
+        const timestamp = moment().tz('Asia/Karachi').format('HH:MM:ss DD/MM/YYYY');
 
         const styles = {
             info: { color: chalk.blue, symbol: 'ℹ️' },
@@ -57,13 +57,13 @@ module.exports.db = (message) => module.exports('database', message);
 
 // ARIF BABU special functions
 module.exports.arif = (message) => {
-    console.log(chalk.hex('#FFD700').bold(`✅ ARIF BABU: ${message}`));
+    console.log(chalk.hex('#FFD700').bold(`✅ SHAAN-KHAN-K: ${message}`));
 };
 
 module.exports.bhidu = (message) => {
-    console.log(chalk.hex('#FFA500').bold(`💔 ARIF BABU: ${message}`));
+    console.log(chalk.hex('#FFA500').bold(`💔 SHAAN-KHAN-K: ${message}`));
 };
 
 module.exports.dungi = (message) => {
-    console.log(chalk.hex('#FF69B4').bold(`🤗 ARIF BABU: ${message}`));
+    console.log(chalk.hex('#FF69B4').bold(`🤗 Shaan-Khan-K: ${message}`));
 };
