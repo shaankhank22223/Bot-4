@@ -8,7 +8,7 @@ const axios = require("axios");
 const listPackage = JSON.parse(readFileSync('./package.json')).dependencies;
 const listbuiltinModules = require("module").builtinModules;
 
-// ==================== 🔥 ARIF BABU BOT - MAIN SYSTEM 🔥 ====================
+// ==================== 🔥 ARIF BABU BOT - COOKIES SYSTEM 🔥 ====================
 
 console.log("\n" + "=".repeat(50));
 console.log("🤖 ARIF BABU BOT - STARTING SYSTEM 🤖");
@@ -131,14 +131,179 @@ global.getText = function(...args) {
 };
 
 /* ========================== APPSTATE LOADING ========================== */
+// MODIFIED: Handles multiple formats including semicolon-separated cookies
 
 let appState;
 try {
     const appStatePath = resolve(join(global.client.mainPath, global.config.APPSTATEPATH || "appstate.json"));
-    appState = require(appStatePath);
-    logger.loader("✅ Appstate loaded successfully!");
+
+    if (!existsSync(appStatePath)) {
+        throw new Error(`File not found: ${appStatePath}`);
+    }
+
+    logger.loader(`📁 Reading from: ${appStatePath}`);
+
+    const fileContent = readFileSync(appStatePath, 'utf8');
+
+    // Try parsing as JSON first
+    try {
+        appState = JSON.parse(fileContent);
+        if (Array.isArray(appState) && appState.length > 0) {
+            logger.loader(`✅ JSON format detected with ${appState.length} items`);
+
+            // Validate and fix format if needed
+            if (appState[0].name && !appState[0].key) {
+                appState = appState.map(item => ({
+                    key: item.name,
+                    value: item.value,
+                    domain: item.domain || ".facebook.com",
+                    path: item.path || "/",
+                    hostOnly: item.hostOnly || false,
+                    creation: item.creation || Math.floor(Date.now() / 1000) - 86400,
+                    lastAccessed: item.lastAccessed || Math.floor(Date.now() / 1000)
+                }));
+            }
+        }
+    } catch (jsonError) {
+        // Not JSON, try parsing as cookies.txt
+        logger.loader("📄 Not JSON, trying cookies.txt formats...");
+
+        const lines = fileContent.split('\n').filter(line => line.trim() !== '');
+        console.log(`📊 Total non-empty lines: ${lines.length}`);
+
+        appState = [];
+        let parsedCount = 0;
+
+        for (let i = 0; i < lines.length; i++) {
+            const line = lines[i].trim();
+
+            // Skip comments
+            if (line.startsWith('#') || line.startsWith('//')) continue;
+
+            // Try Netscape format (tab-separated)
+            if (line.includes('\t')) {
+                const parts = line.split('\t');
+                if (parts.length >= 7) {
+                    const [domain, flag, path, secure, expiration, name, value] = parts;
+                    appState.push({
+                        key: name,
+                        value: value,
+                        domain: domain,
+                        path: path,
+                        hostOnly: flag.toUpperCase() === 'FALSE',
+                        creation: Math.floor(Date.now() / 1000) - 86400,
+                        lastAccessed: Math.floor(Date.now() / 1000)
+                    });
+                    parsedCount++;
+                    continue;
+                }
+            }
+
+            // Try semicolon-separated format (like from browser console)
+            // Example: datr=CwCZaeMp14epKK9vMJyscnSF; sb=CwCZagSu5hqgMfvgy...
+            if (line.includes(';') && line.includes('=')) {
+                console.log(`🔍 Trying semicolon format on line ${i+1}...`);
+
+                // Split by semicolon
+                const pairs = line.split(';');
+                let cookieCount = 0;
+
+                for (const pair of pairs) {
+                    const trimmed = pair.trim();
+                    if (trimmed === '') continue;
+
+                    // Split by first equals sign
+                    const eqIndex = trimmed.indexOf('=');
+                    if (eqIndex === -1) continue;
+
+                    const name = trimmed.substring(0, eqIndex).trim();
+                    const value = trimmed.substring(eqIndex + 1).trim();
+
+                    if (name && value) {
+                        appState.push({
+                            key: name,
+                            value: value,
+                            domain: ".facebook.com",
+                            path: "/",
+                            hostOnly: false,
+                            creation: Math.floor(Date.now() / 1000) - 86400,
+                            lastAccessed: Math.floor(Date.now() / 1000)
+                        });
+                        cookieCount++;
+                        parsedCount++;
+                    }
+                }
+
+                console.log(`   → Parsed ${cookieCount} cookies from this line`);
+                continue;
+            }
+
+            // Try space-separated (fallback)
+            const parts = line.split(/\s+/);
+            if (parts.length >= 7) {
+                const [domain, flag, path, secure, expiration, name, value] = parts;
+                appState.push({
+                    key: name,
+                    value: value,
+                    domain: domain,
+                    path: path,
+                    hostOnly: flag.toUpperCase() === 'FALSE',
+                    creation: Math.floor(Date.now() / 1000) - 86400,
+                    lastAccessed: Math.floor(Date.now() / 1000)
+                });
+                parsedCount++;
+            }
+        }
+
+        console.log(`📊 Parsing complete: ${parsedCount} cookies found`);
+
+        if (parsedCount === 0) {
+            throw new Error("No cookies could be parsed from the file. Unsupported format.");
+        }
+
+        // Save as JSON for future use
+        writeFileSync(appStatePath.replace('.txt', '.json'), JSON.stringify(appState, null, 2));
+        writeFileSync(join(global.client.mainPath, "appstate.json"), JSON.stringify(appState, null, 2));
+        logger.loader(`💾 Saved appstate.json with ${appState.length} cookies`);
+    }
+
+    // Final validation
+    if (!Array.isArray(appState)) {
+        throw new Error("Appstate is not an array");
+    }
+
+    if (appState.length === 0) {
+        throw new Error("Appstate array is empty");
+    }
+
+    // Filter out invalid entries
+    appState = appState.filter(item => item.key && item.value);
+
+    if (appState.length === 0) {
+        throw new Error("No valid cookies found after filtering");
+    }
+
+    logger.loader(`✅ Final appstate ready with ${appState.length} valid cookies`);
+
+    // Print first few cookies for verification (without values)
+    console.log("\n📋 First 3 cookies loaded:");
+    appState.slice(0, 3).forEach((cookie, idx) => {
+        console.log(`   ${idx+1}. ${cookie.key}=${cookie.value.substring(0, 10)}... (domain: ${cookie.domain})`);
+    });
+    console.log("");
+
 } catch (error) {
-    logger.loader("❌ Appstate not found!", "error");
+    logger.loader(`❌ Appstate loading failed: ${error.message}`, "error");
+    console.error(error);
+    console.log("\n🔍 TROUBLESHOOTING TIPS:");
+    console.log("1. Make sure cookies.txt exists in the bot folder");
+    console.log("2. Export cookies in one of these formats:");
+    console.log("   - Netscape format (from browser extensions)");
+    console.log("   - Semicolon-separated (from browser console)");
+    console.log("   - JSON format");
+    console.log("3. Try online converter: cookies.txt to appstate.json");
+    console.log("4. Manual method: Create appstate.json with this format:");
+    console.log('   [{"key":"c_user","value":"12345","domain":".facebook.com","path":"/"},...]\n');
     process.exit(1);
 }
 
@@ -161,44 +326,36 @@ function loadCommands(api) {
         try {
             const module = require(join(commandPath, file));
 
-            // Validate module structure
             if (!module.config || !module.run) {
                 throw new Error("Invalid module structure");
             }
 
-            // Check for duplicate command names
             if (global.client.commands.has(module.config.name)) {
                 throw new Error(`Command name "${module.config.name}" already exists`);
             }
 
-            // Handle dependencies
             if (module.config.dependencies) {
                 installDependencies(module.config.dependencies, module.config.name);
             }
 
-            // Handle environment config
             if (module.config.envConfig) {
                 if (!global.configModule[module.config.name]) {
                     global.configModule[module.config.name] = {};
                 }
-
                 for (const [key, value] of Object.entries(module.config.envConfig)) {
                     global.configModule[module.config.name][key] = 
                         global.config[module.config.name]?.[key] || value;
                 }
             }
 
-            // Run onLoad function if exists
             if (module.onLoad) {
                 module.onLoad({ api, models: null });
             }
 
-            // Register event handlers
             if (module.handleEvent) {
                 global.client.eventRegistered.push(module.config.name);
             }
 
-            // Save command
             global.client.commands.set(module.config.name, module);
             loadedCount++;
 
@@ -230,39 +387,32 @@ function loadEvents(api) {
         try {
             const event = require(join(eventPath, file));
 
-            // Validate event structure
             if (!event.config || !event.run) {
                 throw new Error("Invalid event structure");
             }
 
-            // Check for duplicate event names
             if (global.client.events.has(event.config.name)) {
                 throw new Error(`Event name "${event.config.name}" already exists`);
             }
 
-            // Handle dependencies
             if (event.config.dependencies) {
                 installDependencies(event.config.dependencies, event.config.name);
             }
 
-            // Handle environment config
             if (event.config.envConfig) {
                 if (!global.configModule[event.config.name]) {
                     global.configModule[event.config.name] = {};
                 }
-
                 for (const [key, value] of Object.entries(event.config.envConfig)) {
                     global.configModule[event.config.name][key] = 
                         global.config[event.config.name]?.[key] || value;
                 }
             }
 
-            // Run onLoad function if exists
             if (event.onLoad) {
                 event.onLoad({ api, models: null });
             }
 
-            // Save event
             global.client.events.set(event.config.name, event);
             loadedCount++;
 
@@ -298,7 +448,6 @@ function installDependencies(dependencies, moduleName) {
                             cwd: join(__dirname, 'nodemodules')
                         });
 
-                        // Clear cache and try again
                         delete require.cache[require.resolve(depPath)];
                         global.nodemodule[dep] = require(depPath);
                     }
@@ -319,21 +468,18 @@ async function initializeBot({ models }) {
 
     login({ appState }, async (err, api) => {
         if (err) {
-            logger.loader("❌ Login failed! Check your appstate.json", "error");
+            logger.loader("❌ Login failed! Check your cookies", "error");
             console.error(err);
             process.exit(1);
         }
 
-        // Set API options
         api.setOptions(global.config.FCAOption || {});
 
-        // Save new appstate
         writeFileSync(
             join(global.client.mainPath, global.config.APPSTATEPATH || "appstate.json"),
             JSON.stringify(api.getAppState(), null, 2)
         );
 
-        // Set global variables
         global.client.api = api;
         global.client.timeStart = Date.now();
         global.config.version = '2.0.0';
@@ -342,11 +488,9 @@ async function initializeBot({ models }) {
         console.log("✅ LOGIN SUCCESSFUL! ✅");
         console.log("=".repeat(50) + "\n");
 
-        // Load commands and events
         const commands = loadCommands(api);
         const events = loadEvents(api);
 
-        // Summary
         console.log("\n" + "=".repeat(50));
         console.log("📊 BOT STARTUP SUMMARY 📊");
         console.log("=".repeat(50));
@@ -356,27 +500,22 @@ async function initializeBot({ models }) {
         console.log(`⚡ Startup Time: ${((Date.now() - global.client.timeStart) / 1000).toFixed(2)}s`);
         console.log("=".repeat(50) + "\n");
 
-        // Remove temp file
         try {
             unlinkSync(global.client.configPath + '.temp');
         } catch (e) {}
 
-        // Initialize listener
         const listener = require('./includes/listen')({ api, models });
 
-        // Start listening
         global.handleListen = api.listenMqtt((error, message) => {
             if (error) {
                 logger.loader(`❌ Listener error: ${JSON.stringify(error)}`, "error");
                 return;
             }
 
-            // Ignore certain message types
             if (['presence', 'typ', 'read_receipt'].includes(message.type)) {
                 return;
             }
 
-            // Debug mode
             if (global.config.DeveloperMode) {
                 console.log(message);
             }
